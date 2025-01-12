@@ -1,116 +1,152 @@
 import React, { useState, useRef, useEffect } from 'react';
-import io from 'socket.io-client';
 
-const socket = io('http://localhost:5000'); // Adjust the URL as needed
+const VideoConference = () => {
+    const [roomId] = useState('65ea16af-8d7a-4e2f-8217-bab4b166460c');
+    const [cameraStream, setCameraStream] = useState(null);
+    const [screenStream, setScreenStream] = useState(null);
 
-const VideoConferenceApp = () => {
-    const [roomId, setRoomId] = useState('');
-    const [localStream, setLocalStream] = useState(null);
-    const [waitingRoom, setWaitingRoom] = useState([]);
-    const [messages, setMessages] = useState([]);
-    const videoRef = useRef(null);
-    const [participants, setParticipants] = useState([]);
+    const cameraVideoRef = useRef(null);
+    const screenVideoRef = useRef(null);
 
     useEffect(() => {
-        socket.on('new-user', (userId) => {
-            setParticipants((prev) => [...prev, userId]);
-        });
-
-        socket.on('chat-message', (message) => {
-            setMessages((prev) => [...prev, message]);
-        });
-
-        socket.on('user-left', (userId) => {
-            setParticipants((prev) => prev.filter((id) => id !== userId));
-        });
+        // Запуск камеры
+        startCamera();
 
         return () => {
-            socket.off('new-user');
-            socket.off('chat-message');
-            socket.off('user-left');
+            stopCamera();
+            stopScreenSharing();
         };
     }, []);
 
-    const startVideo = async () => {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-        setLocalStream(stream);
-        videoRef.current.srcObject = stream;
-        socket.emit('join-room', roomId);
+    const startCamera = async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+            setCameraStream(stream);
+            if (cameraVideoRef.current) {
+                cameraVideoRef.current.srcObject = stream;
+            }
+            console.log('Camera started successfully.');
+        } catch (error) {
+            console.error('Error starting camera:', error);
+        }
     };
 
-    const sendMessage = (text) => {
-        socket.emit('chat-message', { text, userId: socket.id });
+    const stopCamera = () => {
+        if (cameraStream) {
+            cameraStream.getTracks().forEach((track) => track.stop());
+            setCameraStream(null);
+            console.log('Camera stopped.');
+        }
     };
 
-    const admitUser = (userId) => {
-        socket.emit('admit-user', userId);
-        setWaitingRoom((prev) => prev.filter((id) => id !== userId));
+    const startScreenSharing = async () => {
+        try {
+            const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+            setScreenStream(stream);
+
+            if (screenVideoRef.current) {
+                screenVideoRef.current.srcObject = stream;
+            }
+
+            // Обработка завершения демонстрации
+            stream.getVideoTracks()[0].onended = () => {
+                stopScreenSharing();
+                console.log('Screen sharing stopped by user.');
+            };
+
+            console.log('Screen sharing started successfully.');
+        } catch (error) {
+            console.error('Error starting screen sharing:', error);
+        }
     };
 
-    const startScreenShare = async () => {
-        const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-        const screenTrack = stream.getTracks()[0];
-        localStream.getVideoTracks()[0].stop(); // Stop the current video track
-        localStream.addTrack(screenTrack); // Add the screen track
-        screenTrack.onended = async () => {
-            const cameraStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-            localStream.addTrack(cameraStream.getVideoTracks()[0]);
-        };
+    const stopScreenSharing = () => {
+        if (screenStream) {
+            screenStream.getTracks().forEach((track) => track.stop());
+            setScreenStream(null);
+            console.log('Screen sharing stopped.');
+        }
     };
 
-    const muteUser = (userId) => {
-        socket.emit('mute-user', userId);
-    };
-
-    const removeUser = (userId) => {
-        socket.emit('remove-user', userId);
+    const leaveRoom = () => {
+        stopCamera();
+        stopScreenSharing();
+        alert('You have left the room.');
     };
 
     return (
-        <div>
-            <h1>Video Conference Room</h1>
-            <input
-                type="text"
-                placeholder="Enter Room ID"
-                value={roomId}
-                onChange={(e) => setRoomId(e.target.value)}
-            />
-            <button onClick={startVideo}>Join Room</button>
-            <video ref={videoRef} autoPlay playsInline />
-
-            <div>
-                <h2>Chat</h2>
-                <div>
-                    {messages.map((msg, index) => (
-                        <div key={index}>{msg.text}</div>
-                    ))}
-                </div>
-                <input
-                    type="text"
-                    placeholder="Type a message"
-                    onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                            sendMessage(e.target.value);
-                            e.target.value = '';
-                        }
+        <div style={{ padding: '20px', backgroundColor: '#1e293b', color: '#ffffff', borderRadius: '8px' }}>
+            <h2>Room ID: {roomId}</h2>
+            <div style={{ display: 'flex', gap: '20px', marginBottom: '20px' }}>
+                <button
+                    onClick={leaveRoom}
+                    style={{
+                        backgroundColor: '#ef4444',
+                        color: '#fff',
+                        padding: '10px 20px',
+                        border: 'none',
+                        borderRadius: '5px',
+                        cursor: 'pointer',
                     }}
-                />
+                >
+                    Leave
+                </button>
+                {screenStream ? (
+                    <button
+                        onClick={stopScreenSharing}
+                        style={{
+                            backgroundColor: '#3b82f6',
+                            color: '#fff',
+                            padding: '10px 20px',
+                            border: 'none',
+                            borderRadius: '5px',
+                            cursor: 'pointer',
+                        }}
+                    >
+                        Stop Sharing
+                    </button>
+                ) : (
+                    <button
+                        onClick={startScreenSharing}
+                        style={{
+                            backgroundColor: '#3b82f6',
+                            color: '#fff',
+                            padding: '10px 20px',
+                            border: 'none',
+                            borderRadius: '5px',
+                            cursor: 'pointer',
+                        }}
+                    >
+                        Share Screen
+                    </button>
+                )}
             </div>
-
-            <div>
-                <h2>Participants</h2>
-                {participants.map((participant) => (
-                    <div key={participant}>
-                        {participant}
-                        <button onClick={() => muteUser(participant)}>Mute</button>
-                        <button onClick={() => removeUser(participant)}>Remove</button>
-                    </div>
-                ))}
+            <div style={{ display: 'flex', gap: '20px' }}>
+                <div>
+                    <h3>Camera</h3>
+                    <video
+                        ref={cameraVideoRef}
+                        autoPlay
+                        playsInline
+                        style={{ width: '300px', height: '200px', border: '1px solid #ccc', borderRadius: '8px' }}
+                    ></video>
+                </div>
+                <div>
+                    <h3>Screen Sharing</h3>
+                    {screenStream ? (
+                        <video
+                            ref={screenVideoRef}
+                            autoPlay
+                            playsInline
+                            style={{ width: '300px', height: '200px', border: '1px solid #ccc', borderRadius: '8px' }}
+                        ></video>
+                    ) : (
+                        <p style={{ color: '#ccc' }}>No screen sharing</p>
+                    )}
+                </div>
             </div>
-
-            <button onClick={startScreenShare}>Share Screen</button>
         </div>
     );
 };
 
-export default VideoConferenceApp;
+export default VideoConference;

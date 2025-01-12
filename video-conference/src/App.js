@@ -1,45 +1,52 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import io from 'socket.io-client';
 import { v4 as uuidv4 } from 'uuid';
 import './App.css';
 
-const socket = io('http://localhost:5000'); // Укажите адрес сервера
+// Инициализация сокета
+const socket = io('http://localhost:5000');
 
 const App = () => {
   const [page, setPage] = useState('welcome'); // 'welcome', 'join', 'room'
   const [roomId, setRoomId] = useState('');
   const [localStream, setLocalStream] = useState(null);
-  const [remoteStreams, setRemoteStreams] = useState([]);
-  const videoRefs = useRef({});
+  const [remoteStreams, setRemoteStreams] = useState({});
+  const [screenSharing, setScreenSharing] = useState(false);
+  const screenStreamRef = useRef(null);
   const localVideoRef = useRef(null);
+  const remoteVideoRefs = useRef({});
 
+  // Устанавливаем локальный видеопоток
   useEffect(() => {
-    // Установка локального видео потока
     if (localVideoRef.current && localStream) {
       localVideoRef.current.srcObject = localStream;
     }
   }, [localStream]);
 
-  useEffect(() => {
-    // Получение удалённых потоков
-    remoteStreams.forEach(({ userId, stream }) => {
-      if (videoRefs.current[userId] && stream) {
-        videoRefs.current[userId].srcObject = stream;
-      }
-    });
-  }, [remoteStreams]);
-
+  // Обработка сокет-событий
   useEffect(() => {
     socket.on('user-joined', ({ userId }) => {
       console.log(`User joined: ${userId}`);
+      if (localStream) {
+        socket.emit('send-stream', { roomId, userId, stream: localStream });
+      }
     });
 
     socket.on('receive-stream', ({ userId, stream }) => {
-      setRemoteStreams((prev) => [...prev, { userId, stream }]);
+      if (stream instanceof MediaStream) {
+        setRemoteStreams((prevStreams) => ({
+          ...prevStreams,
+          [userId]: stream,
+        }));
+      }
     });
 
     socket.on('user-left', (userId) => {
-      setRemoteStreams((prev) => prev.filter((user) => user.userId !== userId));
+      setRemoteStreams((prevStreams) => {
+        const updatedStreams = { ...prevStreams };
+        delete updatedStreams[userId];
+        return updatedStreams;
+      });
     });
 
     return () => {
@@ -47,8 +54,9 @@ const App = () => {
       socket.off('receive-stream');
       socket.off('user-left');
     };
-  }, []);
+  }, [localStream, roomId]);
 
+  // Начало конференции
   const startConference = async (isHost) => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
@@ -62,28 +70,65 @@ const App = () => {
         socket.emit('join-room', roomId);
       }
 
+      // Отправляем свой поток при подключении
+      socket.emit('send-stream', { roomId, userId: uuidv4(), stream });
+
       setPage('room');
     } catch (error) {
       console.error('Error accessing media devices:', error);
     }
   };
 
+  // Присоединение к комнате
+  const handleJoinRoom = (e) => {
+    e.preventDefault();
+    if (roomId.trim()) {
+      startConference(false);
+    }
+  };
+
+  // Оставить конференцию
   const handleLeaveConference = () => {
-    // Отключение потоков и уведомление сервера
     if (localStream) {
       localStream.getTracks().forEach((track) => track.stop());
+    }
+    if (screenStreamRef.current) {
+      screenStreamRef.current.getTracks().forEach((track) => track.stop());
     }
     socket.emit('leave-room', roomId);
     setPage('welcome');
     setRoomId('');
     setLocalStream(null);
-    setRemoteStreams([]);
+    setRemoteStreams({});
+    setScreenSharing(false);
   };
 
-  const handleJoinRoom = (e) => {
-    e.preventDefault();
-    if (roomId.trim()) {
-      startConference(false);
+  // Демонстрация экрана
+  const startScreenSharing = async () => {
+    try {
+      const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+      screenStreamRef.current = screenStream;
+
+      // Отправляем экран
+      socket.emit('share-screen', { roomId, stream: screenStream });
+
+      screenStream.getVideoTracks()[0].onended = () => {
+        stopScreenSharing();
+      };
+
+      setScreenSharing(true);
+    } catch (error) {
+      console.error('Error sharing screen:', error);
+    }
+  };
+
+  // Остановка демонстрации экрана
+  const stopScreenSharing = () => {
+    if (screenStreamRef.current) {
+      screenStreamRef.current.getTracks().forEach((track) => track.stop());
+      screenStreamRef.current = null;
+      socket.emit('stop-share-screen', roomId);
+      setScreenSharing(false);
     }
   };
 
@@ -117,12 +162,32 @@ const App = () => {
             <div className="room-page">
               <h2>Room ID: {roomId}</h2>
               <button className="btn back-btn" onClick={handleLeaveConference}>Leave</button>
+              <button className="btn" onClick={screenSharing ? stopScreenSharing : startScreenSharing}>
+                {screenSharing ? 'Stop Sharing' : 'Share Screen'}
+              </button>
               <div className="video-grid">
+                {/* Локальное видео */}
                 <video ref={localVideoRef} autoPlay playsInline muted className="local-video" />
-                {remoteStreams.map(({ userId }) => (
+
+                {/* Демонстрация экрана */}
+                {screenSharing && (
+                    <video
+                        ref={(el) => {
+                          if (el && screenStreamRef.current) {
+                            el.srcObject = screenStreamRef.current;
+                          }
+                        }}
+                        autoPlay
+                        playsInline
+                        className="screen-video"
+                    />
+                )}
+
+                {/* Видео других участников */}
+                {Object.keys(remoteStreams).map((userId) => (
                     <video
                         key={userId}
-                        ref={(el) => (videoRefs.current[userId] = el)}
+                        ref={(el) => (remoteVideoRefs.current[userId] = el)}
                         autoPlay
                         playsInline
                         className="remote-video"
