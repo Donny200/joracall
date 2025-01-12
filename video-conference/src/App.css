@@ -1,78 +1,118 @@
 body {
-  font-family: 'Arial', sans-serif;
+  font-family: 'Roboto', sans-serif;
   margin: 0;
   padding: 0;
-  background: #20232a; /* Dark background similar to Zoom */
+  background: linear-gradient(to right, #2c3e50, #4ca1af); /* Эффект градиента */
+  color: #fff;
   display: flex;
   justify-content: center;
   align-items: center;
-  height: 100vh;
-  color: #fff;
+  min-height: 100vh;
 }
 
-.App {
+.app {
   width: 100%;
   max-width: 1200px;
-  background: #181c20; /* Slightly darker background */
-  border-radius: 10px;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
-  padding: 20px;
+  background: #1c1f26; /* Тёмный фон для контейнера */
+  border-radius: 15px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+  padding: 30px;
   display: flex;
-  flex-wrap: wrap; /* Allow multiple rows for participants */
-  justify-content: center; /* Center the video containers */
-  gap: 20px; /* Space between the video containers */
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+
+h1, h2, h3 {
+  margin: 0;
+  font-weight: bold;
+  color: #f3f3f3;
+}
+
+h1 {
+  font-size: 2.5rem;
+  margin-bottom: 10px;
+}
+
+h2 {
+  font-size: 1.8rem;
 }
 
 h3 {
-  font-size: 24px;
-  color: #fff;
-  margin-bottom: 15px;
+  font-size: 1.5rem;
+  margin-bottom: 10px;
 }
 
-.user-video-container {
-  margin-bottom: 20px;
-  text-align: center;
-}
-
-/* Video Wrapper */
-.video-wrapper {
-  position: relative;
-  width: 300px;  /* Fixed width */
-  height: 200px; /* Fixed height */
-  background: #333;
-  border-radius: 10px;
-  overflow: hidden;
-}
-
-video {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;  /* Ensure the video fits the container */
-  border-radius: 10px;
-}
-
-button {
-  background-color: #008CFF; /* Zoom-like blue */
-  color: #fff;
-  border: none;
-  padding: 12px 24px;
-  font-size: 16px;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: background-color 0.3s ease;
-  margin: 10px;
+.btn {
+  padding: 15px 30px;
+  font-size: 1.1rem;
   font-weight: bold;
+  color: #fff;
+  background: linear-gradient(45deg, #4ca1af, #2c3e50);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: transform 0.2s, background-color 0.3s ease;
 }
 
-button:hover {
-  background-color: #0078d4; /* Darker blue on hover */
+.btn:hover {
+  transform: scale(1.05);
+  background: linear-gradient(45deg, #2c3e50, #4ca1af);
 }
 
-button:disabled {
-  background-color: #555;
-  cursor: not-allowed;
+.back-btn {
+  background: #e74c3c;
 }
-  
+
+.back-btn:hover {
+  background: #c0392b;
+}
+
+.video-grid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 20px;
+  width: 100%;
+  margin-top: 20px;
+}
+
+.local-video,
+.remote-video {
+  width: 300px;
+  height: 200px;
+  border-radius: 10px;
+  border: 4px solid #4ca1af;
+  object-fit: cover;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+  transition: transform 0.3s ease, border-color 0.3s ease;
+}
+
+.local-video:hover,
+.remote-video:hover {
+  transform: scale(1.05);
+  border-color: #2c3e50;
+}
+
+input[type="text"] {
+  padding: 10px;
+  font-size: 1rem;
+  border: 2px solid #4ca1af;
+  border-radius: 8px;
+  outline: none;
+  width: 100%;
+  max-width: 300px;
+  box-sizing: border-box;
+  margin-bottom: 10px;
+}
+
+input[type="text"]:focus {
+  border-color: #2c3e50;
+}
+
+form {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 15px;
+}

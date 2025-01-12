@@ -1,49 +1,40 @@
-const express = require('express');
-const http = require('http');
-const socketIo = require('socket.io');
+const io = require('socket.io')(5000, {
+    cors: {
+        origin: '*',
+    },
+});
 
-const app = express();
-const server = http.createServer(app);
-const io = socketIo(server);
-
-let usersInRoom = {};
+const rooms = {};
 
 io.on('connection', (socket) => {
-    socket.on('join', ({ room }) => {
-        socket.join(room);
-        usersInRoom[socket.id] = room;
-        socket.to(room).emit('new-user', socket.id);
+    socket.on('create-room', (roomId) => {
+        rooms[roomId] = rooms[roomId] || [];
+        rooms[roomId].push(socket.id);
+        socket.join(roomId);
+        console.log(`Room ${roomId} created`);
     });
 
-    socket.on('offer', ({ offer, userId }) => {
-        socket.to(userId).emit('offer', offer, socket.id);
+    socket.on('join-room', (roomId) => {
+        if (rooms[roomId]) {
+            rooms[roomId].push(socket.id);
+            socket.join(roomId);
+            socket.to(roomId).emit('user-joined', { userId: socket.id });
+        }
     });
 
-    socket.on('answer', ({ answer, userId }) => {
-        socket.to(userId).emit('answer', answer, socket.id);
-    });
-
-    socket.on('ice-candidate', (candidate, userId) => {
-        socket.to(userId).emit('ice-candidate', candidate, socket.id);
-    });
-
-    socket.on('user-left', (roomId) => {
+    socket.on('leave-room', (roomId) => {
+        if (rooms[roomId]) {
+            rooms[roomId] = rooms[roomId].filter((id) => id !== socket.id);
+            socket.to(roomId).emit('user-left', socket.id);
+            if (rooms[roomId].length === 0) delete rooms[roomId];
+        }
         socket.leave(roomId);
-        delete usersInRoom[socket.id];
-        socket.to(roomId).emit('user-left');
-    });
-
-    socket.on('end-conference', (roomId) => {
-        io.to(roomId).emit('end-conference');
     });
 
     socket.on('disconnect', () => {
-        const roomId = usersInRoom[socket.id];
-        delete usersInRoom[socket.id];
-        socket.to(roomId).emit('user-left');
+        for (const roomId in rooms) {
+            rooms[roomId] = rooms[roomId].filter((id) => id !== socket.id);
+            if (rooms[roomId].length === 0) delete rooms[roomId];
+        }
     });
-});
-
-server.listen(3000, () => {
-    console.log('Server is running on http://localhost:3000');
 });
